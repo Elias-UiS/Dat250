@@ -61,13 +61,14 @@
             </div>
             <!--Edit details-->
             <div id="edit-details" style="display: none;">
-              <form action="" method="post" novalidate>
+              <form action="" method="post">
                 <div class="mb-2">{{ form.education(class_="form-control") }}</div>
                 <div class="mb-2">{{ form.employment(class_="form-control") }}</div>
                 <div class="mb-2">{{ form.music(class_="form-control") }}</div>
                 <div class="mb-2">{{ form.movie(class_="form-control") }}</div>
                 <div class="mb-2">{{ form.nationality(class_="form-control") }}</div>
                 <div class="mb-3">{{ form.birthday(class_="form-control") }}</div>
+                <div class="mb-3">{{ form.csrf_token }}</div>
                 <div>{{ form.submit(class="btn btn-primary") }}</div>
               </form>
             </div>

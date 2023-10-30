@@ -18,7 +18,10 @@ Example:
 from datetime import datetime
 from typing import cast
 
+from flask_wtf.file import FileAllowed
 from flask_wtf import FlaskForm
+
+
 from wtforms import (
     BooleanField,
     DateField,
@@ -28,12 +31,13 @@ from wtforms import (
     StringField,
     SubmitField,
     TextAreaField,
+    validators,
 )
 
 # Defines all forms in the application, these will be instantiated by the template,
 # and the routes.py will read the values of the fields
 
-# TODO: Add validation, maybe use wtforms.validators??
+# : Add validation, maybe use wtforms.validators??
 
 # TODO: There was some important security feature that wtforms provides, but I don't remember what; implement it
 
@@ -52,11 +56,21 @@ class LoginForm(FlaskForm):
 class RegisterForm(FlaskForm):
     """Provides the registration form for the application."""
 
-    first_name = StringField(label="First Name", render_kw={"placeholder": "First Name"})
-    last_name = StringField(label="Last Name", render_kw={"placeholder": "Last Name"})
-    username = StringField(label="Username", render_kw={"placeholder": "Username"})
-    password = PasswordField(label="Password", render_kw={"placeholder": "Password"})
-    confirm_password = PasswordField(label="Confirm Password", render_kw={"placeholder": "Confirm Password"})
+    first_name = StringField(label="First Name", render_kw={"placeholder": "First Name"}, 
+    validators=[validators.InputRequired("A first name is required"), validators.Length(min=2, max=30), validators.Regexp(r'^[\w.@+-]+$')])
+
+    last_name = StringField(label="Last Name", render_kw={"placeholder": "Last Name"},
+    validators=[validators.InputRequired(), validators.Length(min=2, max=30)])
+
+    username = StringField(label="Username", render_kw={"placeholder": "Username"},
+    validators=[validators.InputRequired(), validators.Length(min=3, max=30)])
+
+    password = PasswordField(label="Password", render_kw={"placeholder": "Password"},
+    validators=[validators.InputRequired(), validators.Length(min=3, max=30), validators.EqualTo('confirm_password', message='Passwords must match')])
+
+    confirm_password = PasswordField(label="Confirm Password", render_kw={"placeholder": "Confirm Password"},
+                                     validators=[validators.InputRequired(message = 'Can not be empty')])
+
     submit = SubmitField(label="Sign Up")
 
 
@@ -70,22 +84,22 @@ class IndexForm(FlaskForm):
 class PostForm(FlaskForm):
     """Provides the post form for the application."""
 
-    content = TextAreaField(label="New Post", render_kw={"placeholder": "What are you thinking about?"})
-    image = FileField(label="Image")
+    content = TextAreaField(label="New Post", render_kw={"placeholder": "What are you thinking about?"}, validators=[validators.InputRequired(message = 'Can not be empty')])
+    image = FileField(label="Image", validators=[FileAllowed(['jpg', 'png'], 'Images only!')])
     submit = SubmitField(label="Post")
 
 
 class CommentsForm(FlaskForm):
     """Provides the comment form for the application."""
 
-    comment = TextAreaField(label="New Comment", render_kw={"placeholder": "What do you have to say?"})
+    comment = TextAreaField(label="New Comment", render_kw={"placeholder": "What do you have to say?"}, validators=[validators.InputRequired(message = 'Can not be empty')])
     submit = SubmitField(label="Comment")
 
 
 class FriendsForm(FlaskForm):
     """Provides the friend form for the application."""
 
-    username = StringField(label="Friend's username", render_kw={"placeholder": "Username"})
+    username = StringField(label="Friend's username", render_kw={"placeholder": "Username"}, validators=[validators.InputRequired(message = 'Can not be empty')])
     submit = SubmitField(label="Add Friend")
 
 

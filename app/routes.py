@@ -7,10 +7,28 @@ It also contains the SQL queries used for communicating with the database.
 from pathlib import Path
 
 from flask import flash, redirect, render_template, send_from_directory, url_for
-
+from flask_login import login_user, login_required, logout_user, current_user
 from app import app, sqlite
 from app.forms import CommentsForm, FriendsForm, IndexForm, PostForm, ProfileForm
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 
+class User(UserMixin):
+    def __init__(self, id, username, password):
+         self.id = id
+         self.username = username
+         self.password = password
+
+    def is_anonymous(self):
+         return False
+    def is_authenticated(self):
+         return True
+    def is_active(self):
+         return True
+    def get_id(self):
+          try:
+               return str(self.id)
+          except AttributeError:
+               raise NotImplementedError("No `id` attribute - override `get_id`") from None
 
 @app.route("/", methods=["GET", "POST"])
 @app.route("/index", methods=["GET", "POST"])
@@ -27,6 +45,12 @@ def index():
     register_form = index_form.register
 
     if login_form.is_submitted() and login_form.submit.data:
+        try:
+            if current_user.is_authenticated:
+                return redirect(url_for("stream", username=login_form.username.data))
+        except AttributeError:
+            print("")
+
         get_user = f"""
             SELECT *
             FROM Users
@@ -35,25 +59,49 @@ def index():
         user = sqlite.query(get_user, one=True)
 
         if user is None:
-            flash("Sorry, this user does not exist!", category="warning")
+            flash("Either the username or password is wrong", category="warning")
         elif user["password"] != login_form.password.data:
-            flash("Sorry, wrong password!", category="warning")
+            flash("Either the username or password is wrong!", category="warning")
         elif user["password"] == login_form.password.data:
-            return redirect(url_for("stream", username=login_form.username.data))
+            if login_form.validate_on_submit():
+                if login_form.remember_me.data == True:
+                    user_class = User(user["id"], user["username"], user["password"])
+                    login_user(user_class, remember=True)
+                else:
+                    user_class = User(user["id"], user["username"], user["password"])
+                    login_user(user_class)
+
+            # conn = sqlite3.connect('/var/www/flask/login.db')
+            # curs = conn.cursor()
+            #         curs.execute("SELECT * FROM login where email = (?)",    [form.email.data])
+            #         user = list(curs.fetchone())
+            #         Us = load_user(user[0])
+            #         if form.email.data == Us.email and form.password.data == Us.password:
+            #             login_user(Us, remember=form.remember.data)
+            #             Umail = list({form.email.data})[0].split('@')[0]
+            #             flash('Logged in successfully '+Umail)
+            #             redirect(url_for('profile'))
+
+
+
+                return redirect(url_for("stream", username=login_form.username.data))
 
     elif register_form.is_submitted() and register_form.submit.data:
-        insert_user = f"""
-            INSERT INTO Users (username, first_name, last_name, password)
-            VALUES ('{register_form.username.data}', '{register_form.first_name.data}', '{register_form.last_name.data}', '{register_form.password.data}');
-            """
-        sqlite.query(insert_user)
-        flash("User successfully created!", category="success")
-        return redirect(url_for("index"))
+        if register_form.validate_on_submit():
+            insert_user = f"""
+                INSERT INTO Users (username, first_name, last_name, password)
+                VALUES ('{register_form.username.data}', '{register_form.first_name.data}', '{register_form.last_name.data}', '{register_form.password.data}');
+                """
+            sqlite.query(insert_user)
+            flash("User successfully created!", category="success")
+            return redirect(url_for("index"))
+        return render_template("index.html.j2", title="Welcome", form=index_form)
 
     return render_template("index.html.j2", title="Welcome", form=index_form)
 
 
 @app.route("/stream/<string:username>", methods=["GET", "POST"])
+@login_required
 def stream(username: str):
     """Provides the stream page for the application.
 
@@ -70,16 +118,17 @@ def stream(username: str):
     user = sqlite.query(get_user, one=True)
 
     if post_form.is_submitted():
-        if post_form.image.data:
-            path = Path(app.instance_path) / app.config["UPLOADS_FOLDER_PATH"] / post_form.image.data.filename
-            post_form.image.data.save(path)
+        if post_form.validate_on_submit():
+            if post_form.image.data:
+                path = Path(app.instance_path) / app.config["UPLOADS_FOLDER_PATH"] / post_form.image.data.filename
+                post_form.image.data.save(path)
 
-        insert_post = f"""
-            INSERT INTO Posts (u_id, content, image, creation_time)
-            VALUES ({user["id"]}, '{post_form.content.data}', '{post_form.image.data.filename}', CURRENT_TIMESTAMP);
-            """
-        sqlite.query(insert_post)
-        return redirect(url_for("stream", username=username))
+            insert_post = f"""
+                INSERT INTO Posts (u_id, content, image, creation_time)
+                VALUES ({user["id"]}, '{post_form.content.data}', '{post_form.image.data.filename}', CURRENT_TIMESTAMP);
+                """
+            sqlite.query(insert_post)
+            return redirect(url_for("stream", username=username))
 
     get_posts = f"""
          SELECT p.*, u.*, (SELECT COUNT(*) FROM Comments WHERE p_id = p.id) AS cc
@@ -92,6 +141,7 @@ def stream(username: str):
 
 
 @app.route("/comments/<string:username>/<int:post_id>", methods=["GET", "POST"])
+@login_required
 def comments(username: str, post_id: int):
     """Provides the comments page for the application.
 
@@ -133,6 +183,7 @@ def comments(username: str, post_id: int):
 
 
 @app.route("/friends/<string:username>", methods=["GET", "POST"])
+@login_required
 def friends(username: str):
     """Provides the friends page for the application.
 
@@ -186,6 +237,7 @@ def friends(username: str):
 
 
 @app.route("/profile/<string:username>", methods=["GET", "POST"])
+@login_required
 def profile(username: str):
     """Provides the profile page for the application.
 
@@ -216,6 +268,13 @@ def profile(username: str):
 
 
 @app.route("/uploads/<string:filename>")
+@login_required
 def uploads(filename):
-    """Provides an endpoint for serving uploaded files."""
     return send_from_directory(Path(app.instance_path) / app.config["UPLOADS_FOLDER_PATH"], filename)
+    """Provides an endpoint for serving uploaded files."""
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user(current_user)
+    return render_template("index.html.j2", title="Welcome")
