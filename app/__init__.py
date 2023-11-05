@@ -3,11 +3,12 @@
 from pathlib import Path
 from typing import cast
 
-from flask import Flask, session
+from flask import Flask
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from app.config import Config
 from app.database import SQLite3
-
+from flask_bcrypt import Bcrypt, generate_password_hash
+from flask_talisman import Talisman
 
 # from flask_bcrypt import Bcrypt
 from flask_wtf.csrf import CSRFProtect
@@ -20,7 +21,7 @@ secret_key = app.config["SECRET_KEY"]
 # Instantiate the sqlite database extension
 sqlite = SQLite3(app, schema="schema.sql")
 
-# TODO: Handle login management better, maybe with flask_login?
+# : Handle login management better, maybe with flask_login?
 login_manager = LoginManager(app)
 login_manager.init_app(app)
 
@@ -52,11 +53,14 @@ class User(UserMixin):
           except AttributeError:
                raise NotImplementedError("No `id` attribute - override `get_id`") from None
     
-# TODO: The passwords are stored in plaintext, this is not secure at all. I should probably use bcrypt or something
-# bcrypt = Bcrypt(app)
+# : The passwords are stored in plaintext, this is not secure at all. I should probably use bcrypt or something
+bcrypt = Bcrypt(app)
 
 # : The CSRF protection is not working, I should probably fix that
 csrf = CSRFProtect(app)
+app.config['CSRF_ENABLED'] = True
+
+
 
 # Create the instance and upload folder if they do not exist
 with app.app_context():

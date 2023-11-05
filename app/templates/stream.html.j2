@@ -10,7 +10,7 @@
             <form action="" method="post" enctype="multipart/form-data">
               <div class="mb-3">{{ form.content(class_="form-control") }}</div>
               <div class="mb-3">{{ form.image(class_="form-control") }}</div>
-              <div class="mb-3">{{ form.csrf_token }}</div>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <div>{{ form.submit(class_="btn btn-primary") }}</div>
             </form>
           </div>

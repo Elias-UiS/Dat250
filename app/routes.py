@@ -8,9 +8,14 @@ from pathlib import Path
 
 from flask import flash, redirect, render_template, send_from_directory, url_for
 from flask_login import login_user, login_required, logout_user, current_user
-from app import app, sqlite
+from app import app, sqlite, bcrypt
 from app.forms import CommentsForm, FriendsForm, IndexForm, PostForm, ProfileForm
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from bcrypt import gensalt, checkpw
+from flask_wtf.csrf import CSRFError
+
+
+
 
 class User(UserMixin):
     def __init__(self, id, username, password):
@@ -44,57 +49,50 @@ def index():
     login_form = index_form.login
     register_form = index_form.register
 
-    if login_form.is_submitted() and login_form.submit.data:
+
+    if login_form.is_submitted() and login_form.submit.data and login_form.validate_on_submit():
         try:
             if current_user.is_authenticated:
                 return redirect(url_for("stream", username=login_form.username.data))
         except AttributeError:
             print("")
 
-        get_user = f"""
-            SELECT *
-            FROM Users
-            WHERE username = '{login_form.username.data}';
-            """
+        get_user = f"SELECT * FROM Users WHERE username = '{login_form.username.data}';"
         user = sqlite.query(get_user, one=True)
-
         if user is None:
             flash("Either the username or password is wrong", category="warning")
-        elif user["password"] != login_form.password.data:
+        elif user["username"] != login_form.username.data:
             flash("Either the username or password is wrong!", category="warning")
-        elif user["password"] == login_form.password.data:
-            if login_form.validate_on_submit():
-                if login_form.remember_me.data == True:
-                    user_class = User(user["id"], user["username"], user["password"])
-                    login_user(user_class, remember=True)
-                else:
-                    user_class = User(user["id"], user["username"], user["password"])
-                    login_user(user_class)
-
-            # conn = sqlite3.connect('/var/www/flask/login.db')
-            # curs = conn.cursor()
-            #         curs.execute("SELECT * FROM login where email = (?)",    [form.email.data])
-            #         user = list(curs.fetchone())
-            #         Us = load_user(user[0])
-            #         if form.email.data == Us.email and form.password.data == Us.password:
-            #             login_user(Us, remember=form.remember.data)
-            #             Umail = list({form.email.data})[0].split('@')[0]
-            #             flash('Logged in successfully '+Umail)
-            #             redirect(url_for('profile'))
+        elif not checkpw(login_form.password.data.encode('utf8'), user["password"].encode('utf8')):
+            flash("Either the username or password is wrong!", category="warning")
+        
+        remeber_me = bool(login_form.remember_me.data)
+        
+        if remeber_me is True:
+            user_class = User(user["id"], user["username"], user["password"])
+            login_user(user_class, remember=True)
+        else:
+            user_class = User(user["id"], user["username"], user["password"])
+            login_user(user_class)
 
 
-
-                return redirect(url_for("stream", username=login_form.username.data))
+        return redirect(url_for("stream", username=login_form.username.data))
 
     elif register_form.is_submitted() and register_form.submit.data:
         if register_form.validate_on_submit():
-            insert_user = f"""
-                INSERT INTO Users (username, first_name, last_name, password)
-                VALUES ('{register_form.username.data}', '{register_form.first_name.data}', '{register_form.last_name.data}', '{register_form.password.data}');
-                """
-            sqlite.query(insert_user)
-            flash("User successfully created!", category="success")
-            return redirect(url_for("index"))
+            get_user = f"SELECT * FROM Users WHERE username = '{register_form.username.data}';"
+            user = sqlite.query(get_user, one=True)
+            if user is not None:
+                flash("Either the username or password is wrong", category="warning")
+            elif user["username"] != login_form.username.data:
+                pw_hash = bcrypt.generate_password_hash(register_form.password.data, 12).decode('utf-8')
+                insert_user = f"""
+                    INSERT INTO Users (username, first_name, last_name, password)
+                    VALUES ('{register_form.username.data}', '{register_form.first_name.data}', '{register_form.last_name.data}', '{pw_hash}');
+                    """
+                sqlite.query(insert_user)
+                flash("User successfully created!", category="success")
+                return redirect(url_for("index"))
         return render_template("index.html.j2", title="Welcome", form=index_form)
 
     return render_template("index.html.j2", title="Welcome", form=index_form)
@@ -158,11 +156,12 @@ def comments(username: str, post_id: int):
     user = sqlite.query(get_user, one=True)
 
     if comments_form.is_submitted():
-        insert_comment = f"""
-            INSERT INTO Comments (p_id, u_id, comment, creation_time)
-            VALUES ({post_id}, {user["id"]}, '{comments_form.comment.data}', CURRENT_TIMESTAMP);
-            """
-        sqlite.query(insert_comment)
+        if comments_form.validate_on_submit():
+            insert_comment = f"""
+                INSERT INTO Comments (p_id, u_id, comment, creation_time)
+                VALUES ({post_id}, {user["id"]}, '{comments_form.comment.data}', CURRENT_TIMESTAMP);
+                """
+            sqlite.query(insert_comment)
 
     get_post = f"""
         SELECT *
@@ -200,33 +199,33 @@ def friends(username: str):
     user = sqlite.query(get_user, one=True)
 
     if friends_form.is_submitted():
-        get_friend = f"""
-            SELECT *
-            FROM Users
-            WHERE username = '{friends_form.username.data}';
-            """
-        friend = sqlite.query(get_friend, one=True)
-        get_friends = f"""
-            SELECT f_id
-            FROM Friends
-            WHERE u_id = {user["id"]};
-            """
-        friends = sqlite.query(get_friends)
-
-        if friend is None:
-            flash("User does not exist!", category="warning")
-        elif friend["id"] == user["id"]:
-            flash("You cannot be friends with yourself!", category="warning")
-        elif friend["id"] in [friend["f_id"] for friend in friends]:
-            flash("You are already friends with this user!", category="warning")
-        else:
-            insert_friend = f"""
-                INSERT INTO Friends (u_id, f_id)
-                VALUES ({user["id"]}, {friend["id"]});
+        if friends_form.validate_on_submit():
+            get_friend = f"""
+                SELECT *
+                FROM Users
+                WHERE username = '{friends_form.username.data}';
                 """
-            sqlite.query(insert_friend)
-            flash("Friend successfully added!", category="success")
+            friend = sqlite.query(get_friend, one=True)
+            get_friends = f"""
+                SELECT f_id
+                FROM Friends
+                WHERE u_id = {user["id"]};
+                """
+            friends = sqlite.query(get_friends)
 
+            if friend is None:
+                flash("User does not exist!", category="warning")
+            elif friend["id"] == user["id"]:
+                flash("You cannot be friends with yourself!", category="warning")
+            elif friend["id"] in [friend["f_id"] for friend in friends]:
+                flash("You are already friends with this user!", category="warning")
+            else:
+                insert_friend = f"""
+                    INSERT INTO Friends (u_id, f_id)
+                    VALUES ({user["id"]}, {friend["id"]});
+                    """
+                sqlite.query(insert_friend)
+                flash("Friend successfully added!", category="success")
     get_friends = f"""
         SELECT *
         FROM Friends AS f JOIN Users as u ON f.f_id = u.id
@@ -254,16 +253,16 @@ def profile(username: str):
     user = sqlite.query(get_user, one=True)
 
     if profile_form.is_submitted():
-        update_profile = f"""
-            UPDATE Users
-            SET education='{profile_form.education.data}', employment='{profile_form.employment.data}',
-                music='{profile_form.music.data}', movie='{profile_form.movie.data}',
-                nationality='{profile_form.nationality.data}', birthday='{profile_form.birthday.data}'
-            WHERE username='{username}';
-            """
-        sqlite.query(update_profile)
-        return redirect(url_for("profile", username=username))
-
+        if profile_form.validate_on_submit():
+            update_profile = f"""
+                UPDATE Users
+                SET education='{profile_form.education.data}', employment='{profile_form.employment.data}',
+                    music='{profile_form.music.data}', movie='{profile_form.movie.data}',
+                    nationality='{profile_form.nationality.data}', birthday='{profile_form.birthday.data}'
+                WHERE username='{username}';
+                """
+            sqlite.query(update_profile)
+            return redirect(url_for("profile", username=username))
     return render_template("profile.html.j2", title="Profile", username=username, user=user, form=profile_form)
 
 
@@ -278,3 +277,7 @@ def uploads(filename):
 def logout():
     logout_user(current_user)
     return render_template("index.html.j2", title="Welcome")
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return render_template("index.html.j2", title="Welcome", reason=e.description), 400

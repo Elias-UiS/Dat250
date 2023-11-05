@@ -24,6 +24,7 @@
             <!-- Comment creation card cont -->
             <form action="" method="post">
               <div class="mb-3">{{ form.comment(class_="form-control") }}</div>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <div>{{ form.submit(class_="btn btn-primary") }}</div>
             </form>
           </div>
@@ -38,7 +39,7 @@
               </div>
             </div>
             <div class="card-body">
-              <p class="card-text">{{ comment.comment }}</p>
+              <p class="card-text">{{ comment.comment}}</p>
             </div>
           </div>
         {% endfor %}

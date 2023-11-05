@@ -68,7 +68,7 @@
                 <div class="mb-2">{{ form.movie(class_="form-control") }}</div>
                 <div class="mb-2">{{ form.nationality(class_="form-control") }}</div>
                 <div class="mb-3">{{ form.birthday(class_="form-control") }}</div>
-                <div class="mb-3">{{ form.csrf_token }}</div>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div>{{ form.submit(class="btn btn-primary") }}</div>
               </form>
             </div>
