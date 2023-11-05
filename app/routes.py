@@ -290,6 +290,7 @@ def add_security_headers(response):
         if not csrf_token:
             return "CSRF Token Missing", 400
         response.headers['X-CSRF-Token'] = csrf_token
+        response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 
 # @app.after_request

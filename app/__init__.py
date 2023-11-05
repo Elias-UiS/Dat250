@@ -60,6 +60,27 @@ bcrypt = Bcrypt(app)
 csrf = CSRFProtect(app)
 app.config['CSRF_ENABLED'] = True
 
+talisman = Talisman(app)
+csp = {
+    'default-src': [
+        '\'self\'',
+        'https://cdn.jsdelivr.net'
+    ],
+    'frame-ancestors': [
+        'https://cdn.jsdelivr.net',
+        '\'self\''
+    ],
+    'form-action': [
+        'https://cdn.jsdelivr.net',
+        '\'self\''
+    ]
+}
+talisman.force_https = False
+talisman.force_file_save = True
+talisman.x_xss_protection = True
+talisman.session_cookie_secure = True
+talisman.session_cookie_samesite = 'Strict'
+talisman.content_security_policy = csp
 
 # Create the instance and upload folder if they do not exist
 with app.app_context():
