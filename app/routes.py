@@ -6,7 +6,7 @@ It also contains the SQL queries used for communicating with the database.
 
 from pathlib import Path
 
-from flask import flash, redirect, render_template, send_from_directory, url_for
+from flask import flash, redirect, render_template, send_from_directory, url_for, request
 from flask_login import login_user, login_required, logout_user, current_user
 from app import app, sqlite, bcrypt
 from app.forms import CommentsForm, FriendsForm, IndexForm, PostForm, ProfileForm
@@ -84,7 +84,7 @@ def index():
             user = sqlite.query(get_user, one=True)
             if user is not None:
                 flash("Either the username or password is wrong", category="warning")
-            elif user["username"] != login_form.username.data:
+            elif register_form.username.data:
                 pw_hash = bcrypt.generate_password_hash(register_form.password.data, 12).decode('utf-8')
                 insert_user = f"""
                     INSERT INTO Users (username, first_name, last_name, password)
@@ -281,3 +281,21 @@ def logout():
 @app.errorhandler(CSRFError)
 def handle_csrf_error(e):
     return render_template("index.html.j2", title="Welcome", reason=e.description), 400
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Frame-Options'] = 'DENY'
+    if request.method == 'POST':
+        csrf_token = request.form.get('csrf_token')
+        if not csrf_token:
+            return "CSRF Token Missing", 400
+        response.headers['X-CSRF-Token'] = csrf_token
+    return response
+
+# @app.after_request
+# def check_csrf_token(response):
+#     if request.method == 'POST':
+#         csrf_token = request.form.get('csrf_token')
+#         if not csrf_token:
+#             return "CSRF Token Missing", 400
+#         response.headers['X-CSRF-Token'] = csrf_token

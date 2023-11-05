@@ -61,7 +61,6 @@ csrf = CSRFProtect(app)
 app.config['CSRF_ENABLED'] = True
 
 
-
 # Create the instance and upload folder if they do not exist
 with app.app_context():
     instance_path = Path(app.instance_path)
